@@ -18,3 +18,18 @@ def find_peaks(theta, I, threshold=0.0):
     idx = np.where((I[1:-1] > I[:-2]) & (I[1:-1] > I[2:]))[0] + 1
     idx = idx[I[idx] > threshold]
     return np.degrees(theta[idx]), I[idx]
+
+def fwhm(theta, I):
+    """Full width at half maximum (degrees) of the main beam, with linear interpolation."""
+    th = np.degrees(theta)
+    i0 = I.argmax()
+    half = I[i0] / 2
+    j = i0                                     # walk right until below half max
+    while j < len(I) - 1 and I[j] > half:
+        j += 1
+    right = np.interp(half, [I[j], I[j - 1]], [th[j], th[j - 1]])
+    j = i0                                     # walk left until below half max
+    while j > 0 and I[j] > half:
+        j -= 1
+    left = np.interp(half, [I[j], I[j + 1]], [th[j], th[j + 1]])
+    return right - left
