@@ -98,3 +98,51 @@ def power_budget(x, wl, theta0_deg=0.0, amp=None, pts_per_lobe=50):
     main_power = trap(I[main], u[main])
     return {"beam_eff": main_power / total, "main": main_power, "total": total,
             "u": u, "I": I, "u_null": u_null}
+
+
+def _climb(I, i):
+    """Move from index i up to the nearest local maximum."""
+    while i < len(I) - 1 and I[i + 1] > I[i]:
+        i += 1
+    while i > 0 and I[i - 1] > I[i]:
+        i -= 1
+    return i
+
+def lobe_extent(I, i):
+    """Indices (l, r) of the lobe peaking at index i, out to its first minima."""
+    l = r = i
+    while r < len(I) - 1 and I[r + 1] < I[r]:
+        r += 1
+    while l > 0 and I[l - 1] < I[l]:
+        l -= 1
+    return l, r
+
+def power_breakdown(pb, strong=0.5):
+    """Split the power from power_budget() into: main lobe, grating lobes (other lobes
+    above `strong` × peak), and sidelobes/background. Also returns the worst
+    non-main level relative to the main peak, in dB."""
+    u, I = pb["u"], pb["I"]
+    trap = lambda y: np.sum(0.5 * (y[1:] + y[:-1]) * np.diff(u))
+    total = trap(I)
+
+    main = np.zeros(len(I), bool)
+    l0, r0 = lobe_extent(I, _climb(I, np.argmin(np.abs(u))))
+    main[l0:r0 + 1] = True
+    peak = I[main].max()
+
+    peaks = list(np.where((I[1:-1] > I[:-2]) & (I[1:-1] >= I[2:]) & (I[1:-1] > strong * peak))[0] + 1)
+    if I[0] > strong * peak and I[0] > I[1]:       # half-lobes sitting on the ±90° edges
+        peaks.append(0)
+    if I[-1] > strong * peak and I[-1] > I[-2]:
+        peaks.append(len(I) - 1)
+
+    grating = np.zeros(len(I), bool)
+    for p in peaks:
+        if not main[p]:
+            l, r = lobe_extent(I, p)
+            grating[l:r + 1] = True
+    grating &= ~main
+
+    f_main, f_grat = trap(I * main) / total, trap(I * grating) / total
+    return {"main": f_main, "grating": f_grat, "other": 1 - f_main - f_grat,
+            "worst_dB": 10 * np.log10(I[~main].max() / peak)}
