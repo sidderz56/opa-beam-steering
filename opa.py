@@ -70,3 +70,30 @@ def peak_sidelobe(x, wl, fov_deg=60, n_u=8001):
     I = pattern_u(u, x, wl)
     main = np.abs(u) < 1.1 * wl / (x[-1] - x[0])     # exclude the main beam
     return 10 * np.log10(I[~main].max())
+
+
+def power_budget(x, wl, theta0_deg=0.0, amp=None, pts_per_lobe=50):
+    """Split the radiated power into main lobe vs everything else.
+
+    Integrates intensity over the visible region in u = sinθ − sinθ0
+    (for isotropic emitters, power is spread evenly in sinθ).
+    Main lobe = |u| < λ/L_eff, the first null of an equivalent uniform array.
+    """
+    x = np.asarray(x, float)
+    N = len(x)
+    s0 = np.sin(np.radians(theta0_deg))
+    L_eff = np.ptp(x) * N / (N - 1)               # = N·d for a uniform array
+    u_null = wl / L_eff
+    n_u = int(2 / (u_null / pts_per_lobe)) + 1    # fine enough to resolve the main lobe
+    u = np.linspace(-1 - s0, 1 - s0, n_u)         # visible region only
+
+    I = np.empty(n_u)
+    for i in range(0, n_u, 20000):                # chunked to keep memory small for large N
+        I[i:i + 20000] = pattern_u(u[i:i + 20000], x, wl, amp)
+
+    trap = lambda y, uu: np.sum(0.5 * (y[1:] + y[:-1]) * np.diff(uu))
+    main = np.abs(u) <= u_null
+    total = trap(I, u)
+    main_power = trap(I[main], u[main])
+    return {"beam_eff": main_power / total, "main": main_power, "total": total,
+            "u": u, "I": I, "u_null": u_null}
