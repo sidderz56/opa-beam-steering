@@ -52,10 +52,11 @@ def pattern(theta, w, d, wl):
 
 def pattern_u(u, x, wl, amp=None):
     """Intensity vs u = sinθ − sinθ0 for emitters at positions x (any spacing),
-    steered to θ0. Normalised so the main beam (u = 0) is 1."""
-    a = np.ones(len(x)) if amp is None else np.asarray(amp, float)
+    steered to θ0. amp may be complex (amplitude × phase error).
+    Normalised so the error-free main beam (u = 0) is 1."""
+    a = np.ones(len(x)) if amp is None else np.asarray(amp)          # no float() any more
     af = np.exp(1j * 2 * np.pi / wl * np.outer(u, x)) @ a
-    return np.abs(af) ** 2 / np.sum(a) ** 2
+    return np.abs(af) ** 2 / np.sum(np.abs(a)) ** 2                  # |a| so complex weights work
 
 def random_positions(N, d_avg, d_min, rng):
     """Emitter positions with random gaps between d_min and 2*d_avg − d_min,
